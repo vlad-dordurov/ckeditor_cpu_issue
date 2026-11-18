@@ -82,8 +82,6 @@ const createEditor = (channelId) =>
     cloudServices: {
       tokenUrl: () => Promise.resolve(token),
       webSocketUrl,
-      connectionTimeout: 60 * 1000,
-      requestTimeout: 3 * 60 * 1000,
     },
     collaboration: { channelId },
     sidebar: { container: document.querySelector("#sidebar") },

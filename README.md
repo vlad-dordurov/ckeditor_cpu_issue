@@ -14,9 +14,12 @@ which bring Cloud Services SDK 54.2.10. It reproduces two problems:
 [![A reload after a network drop hangs the tab. Click to watch the recording.](media/table-paste-hang-preview.png)](media/table-paste-hang.mp4)
 
 In the [recording](media/table-paste-hang.mp4), a word is replaced, and a column of cells is pasted into the table
-while the phone hotspot has no internet. When **Last server ping** reaches 90 s, socket.io closes the connection with
-`ping timeout`, and the editor reconnects. After a reload, the tab hangs at 100% CPU (see the Performance monitor on
-the right).
+while the phone hotspot has no internet. Mobile data is turned back on soon after, but the old connection stays
+dead. When **Last server ping** reaches 90 s, socket.io closes it with `ping timeout`, and the editor reconnects.
+After a reload, the tab hangs at 100% CPU (see the Performance monitor on the right).
+
+The recording was made with `cloudServices.connectionTimeout` and `requestTimeout` set much higher than the
+defaults. The page now uses the defaults.
 
 ## What the page contains
 
@@ -57,9 +60,10 @@ half-open.
 3. Select a column of cells in the other table with the mouse and copy it.
 4. Turn off mobile data on the phone.
 5. Paste the cells into the first column of the table below the replaced word. **Unsaved changes** goes up.
-6. Keep mobile data off until **Last server ping** passes the "closes after" value, and the log shows
-   `Socket closed: ping timeout` and `Connection: disconnected`.
-7. Turn mobile data back on. Wait for `Connection: connected`.
+6. Turn mobile data back on. This can be done right away.
+7. Wait until the editor notices the dead connection and reconnects: the log shows `Socket closed: ping timeout`
+   (when **Last server ping** passes the "closes after" value), `Connection: disconnected`, and then
+   `Connection: connected`.
 8. Optional: read the suggestions through the REST API:
    `GET /api/v5/<environment id>/suggestions?document_id=<channel id>`.
 9. Do not accept or reject the suggestions. Reload the page.
@@ -71,8 +75,10 @@ half-open.
 - In step 9, the tab hangs at 100% CPU while the document loads.
 
 Notes:
-- The outage has to last until the client notices it. If mobile data comes back before the ping timeout, the
-  connection can survive: TCP delivers the stuck data late, the save keeps its attributes, and nothing goes wrong.
+- The old connection has to die. Turning mobile data off and on usually gives the phone a new address, so the old
+  connection never recovers, and the client notices that only from the heartbeat. If the connection survives
+  instead, TCP delivers the stuck data late, the save keeps its attributes, and nothing goes wrong. In that case the
+  log shows no `Connection: disconnected`. Start a new document and try again.
 - Steps 2 and 5 have to be done in the same session. If the page is reloaded between them, the document loads.
 
 ## The hang only
