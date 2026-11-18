@@ -9,18 +9,28 @@ which bring Cloud Services SDK 54.2.10. It reproduces two problems:
    suggestion without that attribute as part of the same paste and chains them all. With a word replacement above
    the table, `Suggestion.head` then loops forever.
 
+## Recording
+
+[![A reload after a network drop hangs the tab. Click to watch the recording.](media/table-paste-hang-preview.png)](media/table-paste-hang.mp4)
+
+In the [recording](media/table-paste-hang.mp4), a word is replaced, and a column of cells is pasted into the table
+while the phone hotspot has no internet. When **Last server ping** reaches 90 s, socket.io closes the connection with
+`ping timeout`, and the editor reconnects. After a reload, the tab hangs at 100% CPU (see the Performance monitor on
+the right).
+
 ## What the page contains
 
 - The editor uses standard plugins only: Essentials, Paragraph, Bold, Italic, Table, TableToolbar, CloudServices,
   Comments, TrackChanges, RealTimeCollaborativeEditing, RealTimeCollaborativeComments and
   RealTimeCollaborativeTrackChanges. Every option is a standard one.
-- The buttons above the editor are a test harness and do not change the editor:
-  - **A. Simulate a dead connection** drops all data on the open WebSocket for 15 s, then closes it, and socket.io
-    reconnects on its own. This is what happens when the network dies but the connection still looks open.
-  - **B. Remove tablePasteChainId** calls the public `suggestion.removeAttribute()`, which also saves the
-    attributes to Cloud Services.
-  - **Show table paste suggestions** writes the in-memory suggestions to the log.
 - The status line shows the connection state, the time since the last server ping, and the number of pending saves.
+  The log below the editor shows connection changes.
+- The buttons above the editor are a test harness and do not change the editor:
+  - **B. Remove tablePasteChainId** calls the public `suggestion.removeAttribute()`, which also saves the
+    attributes to Cloud Services. It checks the hang without a network drop.
+  - **Show table paste suggestions** writes the in-memory suggestions to the log.
+  - **A. Simulate a dead connection** drops all data on the open WebSocket for 15 s, then closes it. It is not used
+    in the steps below.
 
 ## Setup
 
@@ -35,63 +45,43 @@ which bring Cloud Services SDK 54.2.10. It reproduces two problems:
 Each visit without `?channel=` creates a new document, and the channel id is added to the URL. A reload opens the
 same document. **New document** starts a clean one.
 
-To check what Cloud Services stored, read the suggestions through the REST API:
-`GET /api/v5/<environment id>/suggestions?document_id=<channel id>`.
+## Steps to reproduce (both problems)
 
-## Scenario A: a simulated dead connection (both problems)
+Connect the computer to the internet through a phone hotspot. When the phone's mobile data is turned off, the
+computer stays on Wi-Fi, so the browser does not notice the drop and the editor stays editable: the connection is
+half-open.
 
-1. Open a new document. Check that **Connection** shows `connected` and that track changes is on (the page turns it
-   on).
-2. In the first paragraph, select the word "rely" and type "depend". This creates a word replacement.
-3. In the source table, select the three cells of the first column with the mouse and copy them.
-4. Click **A. Simulate a dead connection (15 s)**.
-5. Within 15 seconds, click the first cell of the empty column in the target table and paste. The editor is not
-   locked, because the browser still thinks the connection is open.
-6. Wait for `Connection: disconnected` and then `Connection: connected` in the log, and for **Unsaved changes** `0`.
-7. Click **Show table paste suggestions** and write down the ids. In memory they still have `tablePasteChainId`.
-8. Read the suggestions through the REST API.
-9. Do not accept or reject the pasted suggestions. Reload the page.
+1. Open a new document. Wait for **Connection** `connected`. Track changes is on (the page turns it on).
+2. In the paragraph just above a table, select a word and type another one. This creates a word replacement. Wait
+   for **Unsaved changes** `0`.
+3. Select a column of cells in the other table with the mouse and copy it.
+4. Turn off mobile data on the phone.
+5. Paste the cells into the first column of the table below the replaced word. **Unsaved changes** goes up.
+6. Keep mobile data off until **Last server ping** passes the "closes after" value, and the log shows
+   `Socket closed: ping timeout` and `Connection: disconnected`.
+7. Turn mobile data back on. Wait for `Connection: connected`.
+8. Optional: read the suggestions through the REST API:
+   `GET /api/v5/<environment id>/suggestions?document_id=<channel id>`.
+9. Do not accept or reject the suggestions. Reload the page.
 
-**Expected if both problems are present:**
-- In step 8, the `tablePaste` records have `attributes: null`.
-- In step 9, the tab hangs at 100% CPU.
+**Expected:** the document loads, and the suggestions keep their attributes.
 
-Steps 4–5 can miss: if the save got through before the connection died, its attributes are kept. If the records
-have their attributes in step 8, start a new document and try again.
+**Actual:**
+- In step 8, the table paste suggestions saved during the outage have `attributes: null`.
+- In step 9, the tab hangs at 100% CPU while the document loads.
 
-## Scenario A with a real network drop
+Notes:
+- The outage has to last until the client notices it. If mobile data comes back before the ping timeout, the
+  connection can survive: TCP delivers the stuck data late, the save keeps its attributes, and nothing goes wrong.
+- Steps 2 and 5 have to be done in the same session. If the page is reloaded between them, the document loads.
 
-Use a phone hotspot and turn off the phone's mobile data. The computer stays on Wi-Fi, so the browser does not see
-the drop: the connection is half-open.
+## The hang only
 
-The client finds out that the connection is dead only from the heartbeat: when **Last server ping** gets past the
-"closes after" value, socket.io closes the socket with `ping timeout`. So:
-
-- If the internet comes back before that, the connection can survive: TCP delivers the stuck data late, the save
-  succeeds with its attributes, and there is nothing to reproduce.
-- If the phone's address changed meanwhile (turning mobile data off and on usually does that), the old connection
-  is dead, but the client keeps waiting until the ping timeout. A reload before that loses the changes that were
-  not saved. The page asks before such a reload. **Unsaved changes** shows how many saves are still pending.
-
-Steps:
-
-1. Do steps 1–3 of scenario A.
-2. Turn off mobile data on the phone.
-3. Paste into the target table.
-4. Keep the internet off until the log shows `Socket closed: ping timeout` and `Connection: disconnected`.
-5. Turn mobile data back on. Wait for `Connection: connected` and **Unsaved changes** `0`.
-6. Continue from step 7 of scenario A.
-
-## Scenario B: the hang only
-
-1. Do steps 1–3 of scenario A.
-2. Without reloading the page, click the first cell of the empty column in the target table and paste.
+1. Do steps 1–3 above, without turning off mobile data.
+2. Paste the cells into the first column of the table below the replaced word.
 3. Click **B. Remove tablePasteChainId**, wait a few seconds, then reload.
 
-**Expected if problem 2 is present:** the tab hangs at 100% CPU on load.
-
-The word replacement and the paste have to be made in the same session. If the page is reloaded between them, the
-document loads.
+**Actual:** the tab hangs at 100% CPU on load.
 
 ## After a hang
 
