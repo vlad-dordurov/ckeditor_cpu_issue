@@ -1,0 +1,16 @@
+{
+  "name": "ckeditor-tablepaste-repro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "ckeditor5": "48.5.1",
+    "ckeditor5-premium-features": "48.5.1"
+  },
+  "devDependencies": {
+    "vite": "6.4.6"
+  }
+}

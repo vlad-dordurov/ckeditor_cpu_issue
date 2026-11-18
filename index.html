@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Table paste repro</title>
+  </head>
+  <body>
+    <header class="panel">
+      <div class="info">
+        <strong>CKEditor <span id="version">…</span></strong>
+        <span>Channel: <code id="channel">…</code></span>
+        <span>Connection: <code id="state">…</code></span>
+        <span>Last server ping: <code id="heartbeat">…</code></span>
+        <span>Unsaved changes: <code id="pending">…</code></span>
+      </div>
+      <div class="actions">
+        <button id="dead-connection" type="button" disabled>A. Simulate a dead connection (15 s)</button>
+        <button id="remove-chain-id" type="button" disabled>B. Remove tablePasteChainId</button>
+        <button id="show-suggestions" type="button" disabled>Show table paste suggestions</button>
+        <button id="new-document" type="button">New document</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <div id="editor"></div>
+      <div id="sidebar"></div>
+    </main>
+
+    <pre id="log" class="panel"></pre>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
